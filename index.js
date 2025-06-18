@@ -2,39 +2,48 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-const users = [];
-
+// Homepage
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html');
 });
 
+// In-memory data
+let users = [];
+
+// Create user
 app.post('/api/users', (req, res) => {
   const username = req.body.username;
-  const newUser = { username, _id: Date.now().toString() };
-  users.push({ ...newUser, log: [] });
-  res.json(newUser);
+  const user = { username, _id: Date.now().toString(), log: [] };
+  users.push(user);
+  res.json({ username: user.username, _id: user._id });
 });
 
+// Get all users
 app.get('/api/users', (req, res) => {
-  res.json(users.map(({ username, _id }) => ({ username, _id })));
+  const result = users.map(u => ({ username: u.username, _id: u._id }));
+  res.json(result);
 });
 
+// Add exercise
 app.post('/api/users/:_id/exercises', (req, res) => {
+  const { description, duration, date } = req.body;
   const user = users.find(u => u._id === req.params._id);
   if (!user) return res.json({ error: 'User not found' });
 
-  const { description, duration, date } = req.body;
   const exercise = {
     description,
     duration: parseInt(duration),
     date: date ? new Date(date).toDateString() : new Date().toDateString()
   };
+
   user.log.push(exercise);
+
   res.json({
     _id: user._id,
     username: user.username,
@@ -44,24 +53,27 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   });
 });
 
+// Get user logs
 app.get('/api/users/:_id/logs', (req, res) => {
   const user = users.find(u => u._id === req.params._id);
   if (!user) return res.json({ error: 'User not found' });
 
   let log = [...user.log];
 
-  if (req.query.from) {
-    const from = new Date(req.query.from);
-    log = log.filter(e => new Date(e.date) >= from);
+  const { from, to, limit } = req.query;
+
+  if (from) {
+    const fromDate = new Date(from);
+    log = log.filter(e => new Date(e.date) >= fromDate);
   }
 
-  if (req.query.to) {
-    const to = new Date(req.query.to);
-    log = log.filter(e => new Date(e.date) <= to);
+  if (to) {
+    const toDate = new Date(to);
+    log = log.filter(e => new Date(e.date) <= toDate);
   }
 
-  if (req.query.limit) {
-    log = log.slice(0, parseInt(req.query.limit));
+  if (limit) {
+    log = log.slice(0, parseInt(limit));
   }
 
   res.json({
@@ -72,6 +84,7 @@ app.get('/api/users/:_id/logs', (req, res) => {
   });
 });
 
+// Start server
 const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Your app is listening on port ' + listener.address().port);
+  console.log('App is listening on port ' + listener.address().port);
 });
